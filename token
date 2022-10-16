@@ -1,0 +1,97 @@
+import jieba
+
+class Tokenizer:
+    def __init__(self,chars,coding='c',PAD=0): #初始化字典并赋值给self.chars
+        dic = {}
+        dic['PAD'] = 0
+        self.coding = coding
+        self.PAD = PAD
+        i = 1
+        if coding=='c':
+            for char in chars:
+                if char not in dic.keys():
+                    dic[char] = i
+                    i+=1
+        elif coding=='w':
+            for char in jieba.lcut(chars):
+                if char not in dic.keys():
+                    dic[char] = i
+                    i+=1
+        self.chars = dic
+        #print(self.chars)
+
+    def tokenize(self, sentence): #输入句子sentence，返回list_of_chars
+        list_of_chars = []
+        if self.coding == 'c':
+            for char in sentence:
+                list_of_chars.append(char)
+        elif self.coding == 'w':
+            list_of_chars = jieba.lcut(sentence.strip())
+        return list_of_chars
+
+    def encode(self, list_of_chars): #输入字符列表，返回数字列表tokens
+        tokens = []
+        for char in list_of_chars:
+            tokens.append(self.chars[char])
+        return tokens
+
+    def trim(self, tokens, seq_len): #输入数字列表，整理列表长度，超过seq_len截断，不足则补0
+        while len(tokens) <seq_len:
+            tokens.append(0)
+        if len(tokens)>seq_len:
+            tokens = tokens[:seq_len]
+        return tokens
+    def decode(self, tokens):  #将数字列表翻译回句子
+        for i in tokens:
+            for k,v in self.chars.items():
+                if i==v:
+                    print(k,end = '')
+        print('\n')
+    def encode_all(self,seq_len):  #返回所有长度为seq_len的句子列表和数字列表
+        file = open('jd_comments.txt','r',encoding='utf-8')
+        if self.coding == 'c':
+            for line in file.readlines():
+                if len(line)==seq_len:
+                    tokens = []
+                    for char in line:
+                        tokens.append(self.chars[char])
+                    print(line)
+                    print(T.trim(tokens,seq_len))
+        elif self.coding=='w':
+            for line in file.readlines():
+                line = jieba.lcut(line.strip())
+                if len(line)==seq_len:
+                    tokens = []
+                    for char in line:
+                        tokens.append(self.chars[char])
+                    print(line)
+                    print(T.trim(tokens,seq_len))
+                    print('\n')
+
+f = open('jd_comments.txt','r',encoding='utf-8')
+f1 = open('jd_comments.txt','r',encoding='utf-8')
+chars = f.read()
+string = f1.readlines()
+f.close()
+f1.close()
+print(string[0])
+
+coding = input("enter the coding:")
+T = Tokenizer(chars,coding)
+list_of_chars = T.tokenize(string[0])
+print(list_of_chars)
+tokens = T.encode(list_of_chars)
+print(tokens)
+
+if coding == 'c':
+    seq_len = round(len(chars)/len(string))
+elif coding == 'w':
+    seq_len = round(len(jieba.lcut(chars))/len(string))
+print('seq_len = %d'%seq_len)
+
+tokens = T.trim(tokens,seq_len)
+print(tokens)
+T.decode(tokens)
+
+T.encode_all(seq_len)
+
