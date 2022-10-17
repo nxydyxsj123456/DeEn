@@ -90,6 +90,16 @@ def tokenText(training_data,text2tokensdic) :
     print(Tokened_text)
     return  Tokened_text
 
+def untokenText(output_data,tokens2textdic) :
+    text = []
+    for token in output_data:
+
+        if (token.item() not in tokens2textdic.keys()):
+            text.append('<UNK>')
+        else:
+            text.append(tokens2textdic[token.item()])
+    return  text
+
 def text2tokens(word2id, text, do_lower_case=True):
     output_tokens = []
     text_list =list(text)
@@ -104,23 +114,15 @@ test_path = './data/anomalous.txt'
 
 
 training_data=loaddata(training_path)
-valid_data=loaddata(val_path)
+
 test_data=loaddata(test_path)
 
 text2tokensdic,tokens2textdic=getToken(training_data)
 
 
-
-
-
-
-
 Tokened_training=tokenText(training_data,text2tokensdic)
-Tokened_valid=tokenText(valid_data,text2tokensdic)
+
 Tokened_test=tokenText(test_data,text2tokensdic)
-
-
-
 
 
 
@@ -184,6 +186,10 @@ def evaluate(model, iterator, criterion):
             src = batch[0].transpose(1, 0)
             trg = batch[1].transpose(1, 0).long()  # trg = [trg_len, batch_size]
 
+            test_sentence=untokenText(batch[0][0],tokens2textdic)
+
+            print(test_sentence)
+
             # output = [trg_len, batch_size, output_dim]
             output = model(src, trg, 0)  # turn off teacher forcing
 
@@ -214,42 +220,22 @@ def epoch_time(start_time, end_time):
 
 best_valid_loss = float('inf')
 trainingXdataset=MyDataset(Tokened_training)
-validXdataset=MyDataset(Tokened_valid)
+
 testXdataset=MyDataset(Tokened_test)
 
 
 train_iterator = DataLoader(trainingXdataset,64)
-valid_iterator = DataLoader(validXdataset,64)
+
 test_iterator = DataLoader(testXdataset,64)
 
-for epoch in range(10):
-    start_time = time.time()
-
-    train_loss = train(model, train_iterator, optimizer, criterion)
-    #valid_loss = evaluate(model, valid_iterator, criterion)
-    #print(f'\t Val. Loss: {valid_loss:.3f} |  Val. PPL: {math.exp(valid_loss):7.3f}')
-    #test_loss = evaluate(model, test_iterator, criterion)
-
-    end_time = time.time()
-
-    epoch_mins, epoch_secs = epoch_time(start_time, end_time)
-
-    # if valid_loss < best_valid_loss:
-    #     best_valid_loss = valid_loss
-    torch.save(model.state_dict(), str(epoch)+"model.pt")
-
-    print(f'Epoch: {epoch + 1:02} | Time: {epoch_mins}m {epoch_secs}s')
-    print(f'\tTrain Loss: {train_loss:.3f} | Train PPL: {math.exp(train_loss):7.3f}')
-
-    #print(f'\t test. Loss: {test_loss:.3f} |  test. PPL: {math.exp(test_loss):7.3f}')
 
 """Finally, we test the model on the test set using these "best" parameters."""
 
-#model.load_state_dict(torch.load('tut3-model.pt'))
+model.load_state_dict(torch.load('0model.pt'))
 
-#test_loss = evaluate(model, test_iterator, criterion)
+test_loss = evaluate(model, test_iterator, criterion)
 
-#print(f'| Test Loss: {test_loss:.3f} | Test PPL: {math.exp(test_loss):7.3f} |')
+print(f'| Test Loss: {test_loss:.3f} | Test PPL: {math.exp(test_loss):7.3f} |')
 
 """We've improved on the previous model, but this came at the cost of doubling the training time.
 

@@ -42,6 +42,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
+from torch.utils.data import DataLoader
 
 from torchtext.datasets import Multi30k
 from torchtext.data import Field, BucketIterator
@@ -205,6 +206,8 @@ def epoch_time(start_time, end_time):
 """Then, we train our model, saving the parameters that give us the best validation loss."""
 
 best_valid_loss = float('inf')
+
+
 
 for epoch in range(10):
     start_time = time.time()
