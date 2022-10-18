@@ -232,9 +232,9 @@ class Seq2Seq(nn.Module):
         # trg = [trg_len, batch_size]
         # teacher_forcing_ratio is probability to use teacher forcing
 
-        batch_size = src.shape[1]
-        trg_len = trg.shape[0]
-        trg_vocab_size = self.decoder.output_dim
+        batch_size = src.shape[1]  #batch_size
+        trg_len = trg.shape[0]     #目标句子长度
+        trg_vocab_size = self.decoder.output_dim #目标词向量长度
 
         # tensor to store decoder outputs
         outputs = torch.zeros(trg_len, batch_size, trg_vocab_size).to(self.device)
@@ -262,6 +262,6 @@ class Seq2Seq(nn.Module):
 
             # if teacher forcing, use actual next token as next input
             # if not, use predicted token
-            dec_input = trg[t] if teacher_force else top1
+            dec_input = trg[t] if teacher_force else top1      #没有teacher_force 时训练的时候前一个错了后面基本上就都错了。eval的时候不需要用
 
         return outputs

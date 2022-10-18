@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
-
+from nltk.translate.bleu_score import sentence_bleu
 from torchtext.datasets import Multi30k
 from torchtext.data import Field, BucketIterator
 
@@ -76,7 +76,7 @@ def tokenText(training_data,text2tokensdic) :
         tmpsentence = []
         for voc in sentence:
             if (voc not in text2tokensdic.keys()):
-                tmpsentence.append(99999)
+                tmpsentence.append(999)
             else:
                 tmpsentence.append(text2tokensdic[voc])
         maxlen = max(maxlen, len(tmpsentence))
@@ -179,19 +179,68 @@ def train(model, iterator, optimizer, criterion):
 
 
 def evaluate(model, iterator, criterion):
+    scores = []
+
     model.eval()
     epoch_loss = 0
     with torch.no_grad():
         for i, batch in enumerate(iterator):
+            print(i)
             src = batch[0].transpose(1, 0)
             trg = batch[1].transpose(1, 0).long()  # trg = [trg_len, batch_size]
 
-            test_sentence=untokenText(batch[0][0],tokens2textdic)
+            test_sentence=[]
 
-            print(test_sentence)
+            for j in range(len(batch[0])):
+                tmpsentence=untokenText(batch[0][j], tokens2textdic)
+
+                tmpsentence = [i for n, i in enumerate(tmpsentence) if i not in ['[BOS]', 'PAD', '[EOS]']]
+                # if '[BOS]' in tmpsentence:
+                #     tmpsentence.remove('[BOS]')
+                # if 'PAD' in tmpsentence:
+                #     tmpsentence.remove('PAD')
+                # if '[EOS]' in tmpsentence:
+                #     tmpsentence.remove('[EOS]')
+                test_sentence .append(tmpsentence)
+
+
+
+            #print(test_sentence)
 
             # output = [trg_len, batch_size, output_dim]
             output = model(src, trg, 0)  # turn off teacher forcing
+            tmps=output[:, 0, :]
+            output_token = torch.argmax(output,dim=2)
+
+            output_text = []
+            for j in range(output_token.shape[1]):
+                tmpsentence=untokenText(output_token[:,j],tokens2textdic)
+
+                tmpsentence = [i for n, i in enumerate(tmpsentence) if i not in ['[BOS]','PAD','[EOS]']]
+
+                # if '[BOS]' in tmpsentence:
+                #     tmpsentence.remove('[BOS]')
+                # if 'PAD' in tmpsentence:
+                #     tmpsentence.remove('PAD')
+                # if '[EOS]' in tmpsentence:
+                #     tmpsentence.remove('[EOS]')
+                # tmpsentence.remove('[BOS]')
+                # tmpsentence.remove('PAD')
+                # tmpsentence.remove('[EOS]')
+                output_text.append(tmpsentence)
+            #print(output_text)
+
+            # reference = [['this', 'is', 'a', 'test', 'ojbk', 'ojbk']]
+            # candidate = ['this', 'is', 'a', 'test']
+
+            for j in range(len(output_text)):
+                scores.append(sentence_bleu([test_sentence[j]], output_text[j]))
+
+
+            # print(test_sentence[0])
+            # print(output_text[0])
+            # print(scores[0])
+
 
             output_dim = output.shape[-1]
 
@@ -203,7 +252,7 @@ def evaluate(model, iterator, criterion):
             loss = criterion(output, trg)
             epoch_loss += loss.item()
 
-    return epoch_loss / len(iterator)
+    return epoch_loss / len(iterator),scores
 
 
 """Finally, define a timing function."""
@@ -233,9 +282,20 @@ test_iterator = DataLoader(testXdataset,64)
 
 model.load_state_dict(torch.load('0model.pt'))
 
-test_loss = evaluate(model, test_iterator, criterion)
+test_loss,scores = evaluate(model, test_iterator, criterion)
+#train_loss,scores = evaluate(model, train_iterator, criterion)
 
-print(f'| Test Loss: {test_loss:.3f} | Test PPL: {math.exp(test_loss):7.3f} |')
+print(scores)
+print(max(scores))
+
+# 保存
+import numpy as np
+scores=np.array(scores)
+np.save('scores_bad.npy',scores)   # 保存为.npy格式
+# 读取
+
+
+#print(f'| Test Loss: {test_loss:.3f} | Test PPL: {math.exp(test_loss):7.3f} |')
 
 """We've improved on the previous model, but this came at the cost of doubling the training time.
 
