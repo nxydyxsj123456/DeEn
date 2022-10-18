@@ -62,6 +62,9 @@ def getToken(text_data):
                 tokens2textdic[i] = voc
 
                 i += 1
+    text2tokensdic['<UNK>'] = i
+    tokens2textdic[i] = '<UNK>'
+
     print(text2tokensdic)
     print(tokens2textdic)
 
@@ -76,7 +79,7 @@ def tokenText(training_data,text2tokensdic) :
         tmpsentence = []
         for voc in sentence:
             if (voc not in text2tokensdic.keys()):
-                tmpsentence.append(999)
+                tmpsentence.append(len(text2tokensdic))
             else:
                 tmpsentence.append(text2tokensdic[voc])
         maxlen = max(maxlen, len(tmpsentence))
@@ -87,9 +90,8 @@ def tokenText(training_data,text2tokensdic) :
     print(maxlen)  # 53  padding 到60
     Tokened_text = np.array(Tokened_text)
 
-    print(Tokened_text)
+    #print(Tokened_text)
     return  Tokened_text
-
 def untokenText(output_data,tokens2textdic) :
     text = []
     for token in output_data:

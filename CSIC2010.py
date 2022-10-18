@@ -34,7 +34,7 @@ def loaddata(path):
             line = line.replace('?', ' ');
             line = line.replace('=', ' ');
             line = re.sub(' +', ' ', line)
-            print(line);
+            #print(line);
             line += ' [EOS]'
             line = '[BOS] ' + line
             line = line.split(' ')
@@ -62,6 +62,9 @@ def getToken(text_data):
                 tokens2textdic[i] = voc
 
                 i += 1
+    text2tokensdic['<UNK>'] = i
+    tokens2textdic[i] = '<UNK>'
+
     print(text2tokensdic)
     print(tokens2textdic)
 
@@ -76,7 +79,7 @@ def tokenText(training_data,text2tokensdic) :
         tmpsentence = []
         for voc in sentence:
             if (voc not in text2tokensdic.keys()):
-                tmpsentence.append(99999)
+                tmpsentence.append(len(text2tokensdic))
             else:
                 tmpsentence.append(text2tokensdic[voc])
         maxlen = max(maxlen, len(tmpsentence))
@@ -87,7 +90,7 @@ def tokenText(training_data,text2tokensdic) :
     print(maxlen)  # 53  padding 到60
     Tokened_text = np.array(Tokened_text)
 
-    print(Tokened_text)
+    #print(Tokened_text)
     return  Tokened_text
 
 def text2tokens(word2id, text, do_lower_case=True):
@@ -109,20 +112,9 @@ test_data=loaddata(test_path)
 
 text2tokensdic,tokens2textdic=getToken(training_data)
 
-
-
-
-
-
-
 Tokened_training=tokenText(training_data,text2tokensdic)
 Tokened_valid=tokenText(valid_data,text2tokensdic)
 Tokened_test=tokenText(test_data,text2tokensdic)
-
-
-
-
-
 
 INPUT_DIM = OUTPUT_DIM =len(text2tokensdic)
 
@@ -152,7 +144,6 @@ def train(model, iterator, optimizer, criterion):
     for i, batch in enumerate(iterator):
         src = batch[0].transpose(1,0)
         trg = batch[1].transpose(1,0).long()  # trg = [trg_len, batch_size]
-
 
         # pred = [trg_len, batch_size, pred_dim]
         pred = model(src, trg)
