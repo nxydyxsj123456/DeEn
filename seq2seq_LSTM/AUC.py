@@ -17,6 +17,8 @@ import  re
 
 from dataset import MyDataset
 from  model import *
+from seq2seq_LSTM.model_LSTM import Seq2SeqX
+
 
 def loaddata(path):
     data = []
@@ -110,21 +112,21 @@ def text2tokens(word2id, text, do_lower_case=True):
             output_tokens.append(word2id[i])
     return output_tokens
 
-training_path = './data/normal.txt'
-val_path = './data/normal.txt'
-test_path = './data/anomalous.txt'
+normal_path = '../data/normal.txt'
+val_path = '../data/normal.txt'
+anomalous_path = '../data/anomalous.txt'
 
 
-training_data=loaddata(training_path)
+normal_data=loaddata(normal_path)
 
-test_data=loaddata(test_path)
+anomalous_data=loaddata(anomalous_path)
 
-text2tokensdic,tokens2textdic=getToken(training_data)
+text2tokensdic,tokens2textdic=getToken(normal_data)
 
 
-Tokened_training=tokenText(training_data,text2tokensdic)
+Tokened_normal=tokenText(normal_data, text2tokensdic)
 
-Tokened_test=tokenText(test_data,text2tokensdic)
+Tokened_anomalous=tokenText(anomalous_data, text2tokensdic)
 
 
 
@@ -139,12 +141,14 @@ DEC_DROPOUT = 0.5
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(device)
-
+from model_LSTM import  Seq2SeqX,Encoder,Decoder,Attention
 attn = Attention(ENC_HID_DIM, DEC_HID_DIM)
+
 enc = Encoder(INPUT_DIM, ENC_EMB_DIM, ENC_HID_DIM, DEC_HID_DIM, ENC_DROPOUT)
 dec = Decoder(OUTPUT_DIM, DEC_EMB_DIM, ENC_HID_DIM, DEC_HID_DIM, DEC_DROPOUT, attn)
 
-model = Seq2Seq(enc, dec, device).to(device)
+#from model_LSTM import  Seq2SeqX
+model = Seq2SeqX(enc, dec, device).to(device)
 TRG_PAD_IDX = 0#TRG.vocab.stoi[TRG.pad_token]
 criterion = nn.CrossEntropyLoss(ignore_index = TRG_PAD_IDX).to(device)
 optimizer = optim.Adam(model.parameters(), lr=1e-3)
@@ -198,12 +202,7 @@ def evaluate(model, iterator, criterion):
                 tmpsentence=untokenText(batch[0][j], tokens2textdic)
 
                 tmpsentence = [i for n, i in enumerate(tmpsentence) if i not in ['[BOS]', 'PAD', '[EOS]']]
-                # if '[BOS]' in tmpsentence:
-                #     tmpsentence.remove('[BOS]')
-                # if 'PAD' in tmpsentence:
-                #     tmpsentence.remove('PAD')
-                # if '[EOS]' in tmpsentence:
-                #     tmpsentence.remove('[EOS]')
+
                 test_sentence .append(tmpsentence)
 
 
@@ -221,15 +220,6 @@ def evaluate(model, iterator, criterion):
 
                 tmpsentence = [i for n, i in enumerate(tmpsentence) if i not in ['[BOS]','PAD','[EOS]']]
 
-                # if '[BOS]' in tmpsentence:
-                #     tmpsentence.remove('[BOS]')
-                # if 'PAD' in tmpsentence:
-                #     tmpsentence.remove('PAD')
-                # if '[EOS]' in tmpsentence:
-                #     tmpsentence.remove('[EOS]')
-                # tmpsentence.remove('[BOS]')
-                # tmpsentence.remove('PAD')
-                # tmpsentence.remove('[EOS]')
                 output_text.append(tmpsentence)
             #print(output_text)
 
@@ -271,9 +261,9 @@ def epoch_time(start_time, end_time):
 """Then, we train our model, saving the parameters that give us the best validation loss."""
 
 best_valid_loss = float('inf')
-trainingXdataset=MyDataset(Tokened_training)
+trainingXdataset=MyDataset(Tokened_normal)
 
-testXdataset=MyDataset(Tokened_test)
+testXdataset=MyDataset(Tokened_anomalous)
 
 
 train_iterator = DataLoader(trainingXdataset,64)
@@ -283,7 +273,7 @@ test_iterator = DataLoader(testXdataset,64)
 
 """Finally, we test the model on the test set using these "best" parameters."""
 
-model.load_state_dict(torch.load('8model.pt'))
+model.load_state_dict(torch.load('./9model.pt'))
 
 test_loss,scores1 = evaluate(model, test_iterator, criterion)
 train_loss,scores2 = evaluate(model, train_iterator, criterion)

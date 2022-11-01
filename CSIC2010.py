@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
+from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader
 
 from torchtext.datasets import Multi30k
@@ -93,28 +94,23 @@ def tokenText(training_data,text2tokensdic) :
     #print(Tokened_text)
     return  Tokened_text
 
-def text2tokens(word2id, text, do_lower_case=True):
-    output_tokens = []
-    text_list =list(text)
-    for i in text_list:
-        if i in word2id.keys():
-            output_tokens.append(word2id[i])
-    return output_tokens
 
-training_path = './data/normal.txt'
+
+normal_path = './data/normal.txt'
 val_path = './data/normal.txt'
-test_path = './data/anomalous.txt'
+anomalous_path = './data/anomalous.txt'
 
 
-training_data=loaddata(training_path)
-valid_data=loaddata(val_path)
-test_data=loaddata(test_path)
+normal_data=loaddata(normal_path)
 
-text2tokensdic,tokens2textdic=getToken(training_data)
+anomalous_data=loaddata(anomalous_path)
 
-Tokened_training=tokenText(training_data,text2tokensdic)
-Tokened_valid=tokenText(valid_data,text2tokensdic)
-Tokened_test=tokenText(test_data,text2tokensdic)
+text2tokensdic,tokens2textdic=getToken(normal_data)
+
+
+Tokened_normal=tokenText(normal_data, text2tokensdic)
+
+Tokened_anomalous=tokenText(anomalous_data, text2tokensdic)
 
 INPUT_DIM = OUTPUT_DIM =len(text2tokensdic)
 
@@ -204,35 +200,36 @@ def epoch_time(start_time, end_time):
 """Then, we train our model, saving the parameters that give us the best validation loss."""
 
 best_valid_loss = float('inf')
-trainingXdataset=MyDataset(Tokened_training)
-validXdataset=MyDataset(Tokened_valid)
-testXdataset=MyDataset(Tokened_test)
+
+train_X,test_X,train_y,test_y = train_test_split(Tokened_normal,Tokened_normal,test_size=0.3,random_state=5)
+training_dataset=MyDataset(train_X)
+test_dataset=MyDataset(test_X)
+anomalous_dataset=MyDataset(anomalous_data)
 
 
-train_iterator = DataLoader(trainingXdataset,64)
-valid_iterator = DataLoader(validXdataset,64)
-test_iterator = DataLoader(testXdataset,64)
 
-for epoch in range(10):
+train_iterator = DataLoader(training_dataset,64)
+test_iterator = DataLoader(test_dataset,64)
+anomalous_iterator = DataLoader(anomalous_dataset,64)
+
+for epoch in range(50):
     start_time = time.time()
 
     train_loss = train(model, train_iterator, optimizer, criterion)
-    #valid_loss = evaluate(model, valid_iterator, criterion)
-    #print(f'\t Val. Loss: {valid_loss:.3f} |  Val. PPL: {math.exp(valid_loss):7.3f}')
-    #test_loss = evaluate(model, test_iterator, criterion)
+    test_loss = evaluate(model, test_iterator, criterion)
 
     end_time = time.time()
 
     epoch_mins, epoch_secs = epoch_time(start_time, end_time)
 
-    # if valid_loss < best_valid_loss:
-    #     best_valid_loss = valid_loss
-    torch.save(model.state_dict(), str(epoch)+"model.pt")
+    if test_loss < best_valid_loss:
+        best_valid_loss = test_loss
+        torch.save(model.state_dict(), str(epoch)+"model.pt")
 
     print(f'Epoch: {epoch + 1:02} | Time: {epoch_mins}m {epoch_secs}s')
     print(f'\tTrain Loss: {train_loss:.3f} | Train PPL: {math.exp(train_loss):7.3f}')
 
-    #print(f'\t test. Loss: {test_loss:.3f} |  test. PPL: {math.exp(test_loss):7.3f}')
+    print(f'\t test. Loss: {test_loss:.3f} |  test. PPL: {math.exp(test_loss):7.3f}')
 
 """Finally, we test the model on the test set using these "best" parameters."""
 

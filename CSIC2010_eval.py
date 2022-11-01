@@ -79,7 +79,7 @@ def tokenText(training_data,text2tokensdic) :
         tmpsentence = []
         for voc in sentence:
             if (voc not in text2tokensdic.keys()):
-                tmpsentence.append(len(text2tokensdic))
+                tmpsentence.append(len(text2tokensdic)-1)
             else:
                 tmpsentence.append(text2tokensdic[voc])
         maxlen = max(maxlen, len(tmpsentence))
@@ -194,6 +194,7 @@ def evaluate(model, iterator, criterion):
             test_sentence=[]
 
             for j in range(len(batch[0])):
+                #print(max(batch[0][j]))
                 tmpsentence=untokenText(batch[0][j], tokens2textdic)
 
                 tmpsentence = [i for n, i in enumerate(tmpsentence) if i not in ['[BOS]', 'PAD', '[EOS]']]
@@ -282,18 +283,18 @@ test_iterator = DataLoader(testXdataset,64)
 
 """Finally, we test the model on the test set using these "best" parameters."""
 
-model.load_state_dict(torch.load('0model.pt'))
+model.load_state_dict(torch.load('9model.pt'))
 
-test_loss,scores = evaluate(model, test_iterator, criterion)
-#train_loss,scores = evaluate(model, train_iterator, criterion)
+#test_loss,scores = evaluate(model, test_iterator, criterion)
+train_loss,scores = evaluate(model, train_iterator, criterion)
 
 print(scores)
-print(max(scores))
+print(min(scores))
 
 # 保存
 import numpy as np
 scores=np.array(scores)
-np.save('scores_bad.npy',scores)   # 保存为.npy格式
+np.save('scores_good.npy',scores)   # 保存为.npy格式
 # 读取
 
 

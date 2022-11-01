@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
-from nltk.translate.bleu_score import sentence_bleu
+
 from torchtext.datasets import Multi30k
 from torchtext.data import Field, BucketIterator
 
@@ -16,7 +16,7 @@ import time
 import  re
 
 from dataset import MyDataset
-from  model import *
+from  model_LSTM import *
 
 def loaddata(path):
     data = []
@@ -34,7 +34,7 @@ def loaddata(path):
             line = line.replace('?', ' ');
             line = line.replace('=', ' ');
             line = re.sub(' +', ' ', line)
-            print(line);
+            #print(line);
             line += ' [EOS]'
             line = '[BOS] ' + line
             line = line.split(' ')
@@ -79,7 +79,7 @@ def tokenText(training_data,text2tokensdic) :
         tmpsentence = []
         for voc in sentence:
             if (voc not in text2tokensdic.keys()):
-                tmpsentence.append(len(text2tokensdic)-1)
+                tmpsentence.append(len(text2tokensdic))
             else:
                 tmpsentence.append(text2tokensdic[voc])
         maxlen = max(maxlen, len(tmpsentence))
@@ -92,15 +92,6 @@ def tokenText(training_data,text2tokensdic) :
 
     #print(Tokened_text)
     return  Tokened_text
-def untokenText(output_data,tokens2textdic) :
-    text = []
-    for token in output_data:
-
-        if (token.item() not in tokens2textdic.keys()):
-            text.append('<UNK>')
-        else:
-            text.append(tokens2textdic[token.item()])
-    return  text
 
 def text2tokens(word2id, text, do_lower_case=True):
     output_tokens = []
@@ -110,23 +101,20 @@ def text2tokens(word2id, text, do_lower_case=True):
             output_tokens.append(word2id[i])
     return output_tokens
 
-training_path = './data/normal.txt'
-val_path = './data/normal.txt'
-test_path = './data/anomalous.txt'
+training_path = '../data/normal.txt'
+val_path = '../data/normal.txt'
+test_path = '../data/anomalous.txt'
 
 
 training_data=loaddata(training_path)
-
+valid_data=loaddata(val_path)
 test_data=loaddata(test_path)
 
 text2tokensdic,tokens2textdic=getToken(training_data)
 
-
 Tokened_training=tokenText(training_data,text2tokensdic)
-
+Tokened_valid=tokenText(valid_data,text2tokensdic)
 Tokened_test=tokenText(test_data,text2tokensdic)
-
-
 
 INPUT_DIM = OUTPUT_DIM =len(text2tokensdic)
 
@@ -140,11 +128,14 @@ DEC_DROPOUT = 0.5
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(device)
 
+from model_LSTM import  Seq2SeqX,Encoder,Decoder,Attention
+
 attn = Attention(ENC_HID_DIM, DEC_HID_DIM)
+
 enc = Encoder(INPUT_DIM, ENC_EMB_DIM, ENC_HID_DIM, DEC_HID_DIM, ENC_DROPOUT)
 dec = Decoder(OUTPUT_DIM, DEC_EMB_DIM, ENC_HID_DIM, DEC_HID_DIM, DEC_DROPOUT, attn)
 
-model = Seq2Seq(enc, dec, device).to(device)
+model = Seq2SeqX(enc, dec, device).to(device)
 TRG_PAD_IDX = 0#TRG.vocab.stoi[TRG.pad_token]
 criterion = nn.CrossEntropyLoss(ignore_index = TRG_PAD_IDX).to(device)
 optimizer = optim.Adam(model.parameters(), lr=1e-3)
@@ -156,7 +147,6 @@ def train(model, iterator, optimizer, criterion):
     for i, batch in enumerate(iterator):
         src = batch[0].transpose(1,0)
         trg = batch[1].transpose(1,0).long()  # trg = [trg_len, batch_size]
-
 
         # pred = [trg_len, batch_size, pred_dim]
         pred = model(src, trg)
@@ -181,69 +171,15 @@ def train(model, iterator, optimizer, criterion):
 
 
 def evaluate(model, iterator, criterion):
-    scores = []
-
     model.eval()
     epoch_loss = 0
     with torch.no_grad():
         for i, batch in enumerate(iterator):
-            print(i)
             src = batch[0].transpose(1, 0)
             trg = batch[1].transpose(1, 0).long()  # trg = [trg_len, batch_size]
 
-            test_sentence=[]
-
-            for j in range(len(batch[0])):
-                #print(max(batch[0][j]))
-                tmpsentence=untokenText(batch[0][j], tokens2textdic)
-
-                tmpsentence = [i for n, i in enumerate(tmpsentence) if i not in ['[BOS]', 'PAD', '[EOS]']]
-                # if '[BOS]' in tmpsentence:
-                #     tmpsentence.remove('[BOS]')
-                # if 'PAD' in tmpsentence:
-                #     tmpsentence.remove('PAD')
-                # if '[EOS]' in tmpsentence:
-                #     tmpsentence.remove('[EOS]')
-                test_sentence .append(tmpsentence)
-
-
-
-            #print(test_sentence)
-
             # output = [trg_len, batch_size, output_dim]
             output = model(src, trg, 0)  # turn off teacher forcing
-            tmps=output[:, 0, :]
-            output_token = torch.argmax(output,dim=2)
-
-            output_text = []
-            for j in range(output_token.shape[1]):
-                tmpsentence=untokenText(output_token[:,j],tokens2textdic)
-
-                tmpsentence = [i for n, i in enumerate(tmpsentence) if i not in ['[BOS]','PAD','[EOS]']]
-
-                # if '[BOS]' in tmpsentence:
-                #     tmpsentence.remove('[BOS]')
-                # if 'PAD' in tmpsentence:
-                #     tmpsentence.remove('PAD')
-                # if '[EOS]' in tmpsentence:
-                #     tmpsentence.remove('[EOS]')
-                # tmpsentence.remove('[BOS]')
-                # tmpsentence.remove('PAD')
-                # tmpsentence.remove('[EOS]')
-                output_text.append(tmpsentence)
-            #print(output_text)
-
-            # reference = [['this', 'is', 'a', 'test', 'ojbk', 'ojbk']]
-            # candidate = ['this', 'is', 'a', 'test']
-
-            for j in range(len(output_text)):
-                scores.append(sentence_bleu([test_sentence[j]], output_text[j]))
-
-
-            # print(test_sentence[0])
-            # print(output_text[0])
-            # print(scores[0])
-
 
             output_dim = output.shape[-1]
 
@@ -255,7 +191,7 @@ def evaluate(model, iterator, criterion):
             loss = criterion(output, trg)
             epoch_loss += loss.item()
 
-    return epoch_loss / len(iterator),scores
+    return epoch_loss / len(iterator)
 
 
 """Finally, define a timing function."""
@@ -272,34 +208,40 @@ def epoch_time(start_time, end_time):
 
 best_valid_loss = float('inf')
 trainingXdataset=MyDataset(Tokened_training)
-
+validXdataset=MyDataset(Tokened_valid)
 testXdataset=MyDataset(Tokened_test)
 
 
 train_iterator = DataLoader(trainingXdataset,64)
-
+valid_iterator = DataLoader(validXdataset,64)
 test_iterator = DataLoader(testXdataset,64)
 
+for epoch in range(10):
+    start_time = time.time()
+
+    train_loss = train(model, train_iterator, optimizer, criterion)
+    #valid_loss = evaluate(model, valid_iterator, criterion)
+    #print(f'\t Val. Loss: {valid_loss:.3f} |  Val. PPL: {math.exp(valid_loss):7.3f}')
+    #test_loss = evaluate(model, test_iterator, criterion)
+
+    end_time = time.time()
+
+    epoch_mins, epoch_secs = epoch_time(start_time, end_time)
+
+    # if valid_loss < best_valid_loss:
+    #     best_valid_loss = valid_loss
+    torch.save(model.state_dict(), str(epoch)+"model.pt")
+
+    print(f'Epoch: {epoch + 1:02} | Time: {epoch_mins}m {epoch_secs}s')
+    print(f'\tTrain Loss: {train_loss:.3f} | Train PPL: {math.exp(train_loss):7.3f}')
+
+    #print(f'\t test. Loss: {test_loss:.3f} |  test. PPL: {math.exp(test_loss):7.3f}')
 
 """Finally, we test the model on the test set using these "best" parameters."""
 
-model.load_state_dict(torch.load('8model.pt'))
+#model.load_state_dict(torch.load('tut3-model.pt'))
 
-test_loss,scores1 = evaluate(model, test_iterator, criterion)
-train_loss,scores2 = evaluate(model, train_iterator, criterion)
-
-
-print(max(scores1),min(scores2))
-
-# 保存
-import numpy as np
-scores1=np.array(scores1)
-np.save('scores_bad.npy',scores1)   # 保存为.npy格式
-
-scores2=np.array(scores2)
-np.save('scores_good.npy',scores2)   # 保存为.npy格式
-# 读取
-
+#test_loss = evaluate(model, test_iterator, criterion)
 
 #print(f'| Test Loss: {test_loss:.3f} | Test PPL: {math.exp(test_loss):7.3f} |')
 
@@ -307,35 +249,3 @@ np.save('scores_good.npy',scores2)   # 保存为.npy格式
 
 In the next notebook, we'll be using the same architecture but using a few tricks that are applicable to all RNN architectures - packed padded sequences and masking. We'll also implement code which will allow us to look at what words in the input the RNN is paying attention to when decoding the output.
 """
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-import  numpy as np
-from sklearn import  metrics
-
-# scores_good=np.load('scores_good.npy')
-# scores_bad=np.load('scores_bad.npy')
-
-
-label1=np.zeros(len(scores2))
-label2=np.ones(len(scores1))
-
-label=np.append(label1,label2)
-pred=np.append(scores2,scores1)
-
-fpr,tpr,thresholds = metrics.roc_curve(label,pred,pos_label=0)
-
-auc= metrics.auc(fpr,tpr)
-
-print(auc)

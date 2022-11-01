@@ -57,7 +57,7 @@ class Encoder(nn.Module):
     def __init__(self, input_dim, emb_dim, enc_hid_dim, dec_hid_dim, dropout):
         super().__init__()
         self.embedding = nn.Embedding(input_dim, emb_dim)  # 做词向量
-        self.rnn = nn.GRU(emb_dim, enc_hid_dim, bidirectional=True)  # 编码RNN
+        self.rnn = nn.LSTM(emb_dim, enc_hid_dim, bidirectional=True)  # 编码RNN
         self.fc = nn.Linear(enc_hid_dim * 2, dec_hid_dim)  #把双向2倍的dimfc到解码器 dim
         self.dropout = nn.Dropout(dropout)
 
@@ -70,9 +70,9 @@ class Encoder(nn.Module):
 
         # enc_output = [src_len, batch_size, hid_dim * num_directions]
         # enc_hidden = [n_layers * num_directions, batch_size, hid_dim]
-        enc_output, enc_hidden = self.rnn(embedded)  # if h_0 is not give, it will be set 0 acquiescently
-        tmp1=enc_output[-1,:,:512]
-        tmp2=enc_hidden[0,:,:]
+        enc_output, (enc_hidden,enc_c) = self.rnn(embedded)  # if h_0 is not give, it will be set 0 acquiescently
+        #tmp1=enc_output[-1,:,:512]
+        #tmp2=enc_hidden[0,:,:]
 
         # enc_hidden is stacked [forward_1, backward_1, forward_2, backward_2, ...]
         # enc_output are always from the last layer
@@ -84,8 +84,9 @@ class Encoder(nn.Module):
         # encoder RNNs fed through a linear layer
         # s = [batch_size, dec_hid_dim]
         s = torch.tanh(self.fc(torch.cat((enc_hidden[-2, :, :], enc_hidden[-1, :, :]), dim=1)))
+        c = torch.tanh(self.fc(torch.cat((enc_c[-2, :, :], enc_c[-1, :, :]), dim=1)))
 
-        return enc_output, s
+        return enc_output, s, c
 
 
 """### Attention
@@ -121,10 +122,10 @@ Graphically, this looks something like below. This is for calculating the very f
 class Attention(nn.Module):
     def __init__(self, enc_hid_dim, dec_hid_dim):
         super().__init__()
-        self.attn = nn.Linear((enc_hid_dim * 2) + dec_hid_dim, dec_hid_dim, bias=False)
+        self.attn = nn.Linear((enc_hid_dim * 2) + (dec_hid_dim*2), dec_hid_dim, bias=False)
         self.v = nn.Linear(dec_hid_dim, 1, bias=False)
 
-    def forward(self, s, enc_output):
+    def forward(self, s,state_c, enc_output):
         # s = [batch_size, dec_hid_dim]     上一个隐藏状态
         # enc_output = [src_len, batch_size, enc_hid_dim * 2]     从encode出来的 所有output
 
@@ -134,12 +135,12 @@ class Attention(nn.Module):
         # repeat decoder hidden state src_len times
         # s = [batch_size, src_len, dec_hid_dim]
         # enc_output = [batch_size, src_len, enc_hid_dim * 2]
-        s = s.unsqueeze(1).repeat(1, src_len, 1) #把隐藏值复制句子长度遍 然后跟每个单词计算 得出每个单词的重要程度
+        s = s.unsqueeze(1).repeat(1, src_len, 1)
+        state_c = state_c.unsqueeze(1).repeat(1, src_len, 1)
         enc_output = enc_output.transpose(0, 1)
 
         # energy = [batch_size, src_len, dec_hid_dim]
-        energy = torch.tanh(self.attn(torch.cat((s, enc_output), dim=2)))  #把所有的enc_output 与隐藏状态cat到一起
-                                                                           #经过一个fc层输出一个被atten过的enc_output
+        energy = torch.tanh(self.attn(torch.cat((s,state_c, enc_output), dim=2)))
 
         # attention = [batch_size, src_len]
         attention = self.v(energy).squeeze(2)
@@ -179,11 +180,11 @@ class Decoder(nn.Module):
         self.output_dim = output_dim
         self.attention = attention
         self.embedding = nn.Embedding(output_dim, emb_dim)
-        self.rnn = nn.GRU((enc_hid_dim * 2) + emb_dim, dec_hid_dim)
+        self.rnn = nn.LSTM((enc_hid_dim * 2) + emb_dim, dec_hid_dim)
         self.fc_out = nn.Linear((enc_hid_dim * 2) + dec_hid_dim + emb_dim, output_dim)
         self.dropout = nn.Dropout(dropout)
 
-    def forward(self, dec_input, s, enc_output):
+    def forward(self, dec_input, s, state_c, enc_output):
         # dec_input = [batch_size]
         # s = [batch_size, dec_hid_dim]
         # enc_output = [src_len, batch_size, enc_hid_dim * 2]
@@ -193,20 +194,20 @@ class Decoder(nn.Module):
         embedded = self.dropout(self.embedding(dec_input)).transpose(0, 1)  # embedded = [1, batch_size, emb_dim]
 
         # a = [batch_size, 1, src_len]
-        a = self.attention(s, enc_output).unsqueeze(1)
+        a = self.attention(s,state_c, enc_output).unsqueeze(1)
 
         # enc_output = [batch_size, src_len, enc_hid_dim * 2]
         enc_output = enc_output.transpose(0, 1)
 
         # c = [1, batch_size, enc_hid_dim * 2]
-        c = torch.bmm(a, enc_output).transpose(0, 1) #矩阵相乘     1 64 1024  得到了一个词？
+        c = torch.bmm(a, enc_output).transpose(0, 1)
 
         # rnn_input = [1, batch_size, (enc_hid_dim * 2) + emb_dim]
         rnn_input = torch.cat((embedded, c), dim=2)
 
         # dec_output = [src_len(=1), batch_size, dec_hid_dim]
         # dec_hidden = [n_layers * num_directions, batch_size, dec_hid_dim]
-        dec_output, dec_hidden = self.rnn(rnn_input, s.unsqueeze(0))
+        dec_output, (dec_hidden ,dec_state_c)= self.rnn(rnn_input, (s.unsqueeze(0),state_c.unsqueeze(0)))
 
         # embedded = [batch_size, emb_dim]
         # dec_output = [batch_size, dec_hid_dim]
@@ -218,7 +219,7 @@ class Decoder(nn.Module):
         # pred = [batch_size, output_dim]
         pred = self.fc_out(torch.cat((dec_output, c, embedded), dim=1))
 
-        return pred, dec_hidden.squeeze(0)
+        return pred, dec_hidden.squeeze(0),dec_state_c.squeeze(0)
 
 
 """### Seq2Seq
@@ -239,7 +240,7 @@ Briefly going over all of the steps:
 """
 
 
-class Seq2Seq(nn.Module):
+class Seq2SeqX(nn.Module):
     def __init__(self, encoder, decoder, device):
         super().__init__()
         self.encoder = encoder
@@ -260,7 +261,7 @@ class Seq2Seq(nn.Module):
 
         # enc_output is all hidden states of the input sequence, back and forwards
         # s is the final forward and backward hidden states, passed through a linear layer
-        enc_output, s = self.encoder(src)  # s已经fc过了 可以直接放到下个解码网络中去。
+        enc_output, s , state_c = self.encoder(src)  # s已经fc过了 可以直接放到下个解码网络中去。
 
         # first input to the decoder is the <sos> tokens
         dec_input = trg[0, :]
@@ -268,7 +269,7 @@ class Seq2Seq(nn.Module):
         for t in range(1, trg_len):
             # insert dec_input token embedding, previous hidden state and all encoder hidden states
             # receive output tensor (predictions) and new hidden state
-            dec_output, s = self.decoder(dec_input, s, enc_output)   # 全部enc_output放入decoder再attention出一个值？
+            dec_output, s, state_c = self.decoder(dec_input, s, state_c, enc_output)
 
             # place predictions in a tensor holding predictions for each token
             outputs[t] = dec_output
