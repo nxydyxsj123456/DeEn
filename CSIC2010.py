@@ -112,6 +112,24 @@ Tokened_normal=tokenText(normal_data, text2tokensdic)
 
 Tokened_anomalous=tokenText(anomalous_data, text2tokensdic)
 
+train_normal,test_normal, _, _= train_test_split(Tokened_normal,Tokened_normal,test_size=0.3,random_state=5)
+
+
+np.save("text2tokensdic.npy",text2tokensdic)
+np.save("tokens2textdic.npy",tokens2textdic)
+np.save("train_normal.npy",train_normal)
+np.save("test_normal.npy",test_normal)
+np.save("Tokened_anomalous.npy",Tokened_anomalous)
+
+train_normal_data=MyDataset(train_normal)
+test_normal_data=MyDataset(test_normal)
+anomalous_dataset=MyDataset(Tokened_anomalous)
+
+train_iterator = DataLoader(train_normal_data,64)
+test_iterator = DataLoader(test_normal_data,64)
+anomalous_iterator = DataLoader(anomalous_dataset,64)
+
+
 INPUT_DIM = OUTPUT_DIM =len(text2tokensdic)
 
 ENC_EMB_DIM = 256
@@ -201,16 +219,7 @@ def epoch_time(start_time, end_time):
 
 best_valid_loss = float('inf')
 
-train_X,test_X,train_y,test_y = train_test_split(Tokened_normal,Tokened_normal,test_size=0.3,random_state=5)
-training_dataset=MyDataset(train_X)
-test_dataset=MyDataset(test_X)
-anomalous_dataset=MyDataset(anomalous_data)
 
-
-
-train_iterator = DataLoader(training_dataset,64)
-test_iterator = DataLoader(test_dataset,64)
-anomalous_iterator = DataLoader(anomalous_dataset,64)
 
 for epoch in range(50):
     start_time = time.time()

@@ -115,16 +115,31 @@ val_path = './data/normal.txt'
 test_path = './data/anomalous.txt'
 
 
-training_data=loaddata(training_path)
+# training_data=loaddata(training_path)
+#
+# test_data=loaddata(test_path)
+#
+# text2tokensdic,tokens2textdic=getToken(training_data)
+#
+#
+# Tokened_training=tokenText(training_data,text2tokensdic)
+#
+# Tokened_test=tokenText(test_data,text2tokensdic)
 
-test_data=loaddata(test_path)
+text2tokensdic = np.load("text2tokensdic.npy",allow_pickle=True).item()
+tokens2textdic = np.load("tokens2textdic.npy",allow_pickle=True).item()
+train_normal = np.load("train_normal.npy",allow_pickle=True)
+test_normal = np.load("test_normal.npy",allow_pickle=True)
+Tokened_anomalous = np.load("Tokened_anomalous.npy",allow_pickle=True)
 
-text2tokensdic,tokens2textdic=getToken(training_data)
+train_normal_data=MyDataset(train_normal)
+test_normal_data=MyDataset(test_normal)
+anomalous_dataset=MyDataset(Tokened_anomalous)
 
+train_iterator = DataLoader(train_normal_data,64)
+test_iterator = DataLoader(test_normal_data,64)
+anomalous_iterator = DataLoader(anomalous_dataset,64)
 
-Tokened_training=tokenText(training_data,text2tokensdic)
-
-Tokened_test=tokenText(test_data,text2tokensdic)
 
 
 
@@ -271,14 +286,6 @@ def epoch_time(start_time, end_time):
 """Then, we train our model, saving the parameters that give us the best validation loss."""
 
 best_valid_loss = float('inf')
-trainingXdataset=MyDataset(Tokened_training)
-
-testXdataset=MyDataset(Tokened_test)
-
-
-train_iterator = DataLoader(trainingXdataset,64)
-
-test_iterator = DataLoader(testXdataset,64)
 
 
 """Finally, we test the model on the test set using these "best" parameters."""
@@ -286,7 +293,8 @@ test_iterator = DataLoader(testXdataset,64)
 model.load_state_dict(torch.load('8model.pt'))
 
 test_loss,scores1 = evaluate(model, test_iterator, criterion)
-train_loss,scores2 = evaluate(model, train_iterator, criterion)
+anomalous_loss,scores2 = evaluate(model, anomalous_iterator, criterion)
+
 
 
 print(max(scores1),min(scores2))
