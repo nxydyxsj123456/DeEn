@@ -292,6 +292,7 @@ best_valid_loss = float('inf')
 
 model.load_state_dict(torch.load('8model.pt'))
 
+
 test_loss,scores1 = evaluate(model, test_iterator, criterion)
 anomalous_loss,scores2 = evaluate(model, anomalous_iterator, criterion)
 
@@ -302,10 +303,10 @@ print(max(scores1),min(scores2))
 # 保存
 import numpy as np
 scores1=np.array(scores1)
-np.save('scores_bad.npy',scores1)   # 保存为.npy格式
+np.save('scores_good.npy',scores1)   # 保存为.npy格式
 
 scores2=np.array(scores2)
-np.save('scores_good.npy',scores2)   # 保存为.npy格式
+np.save('scores_bad.npy',scores2)   # 保存为.npy格式
 # 读取
 
 
@@ -336,14 +337,16 @@ from sklearn import  metrics
 # scores_bad=np.load('scores_bad.npy')
 
 
-label1=np.zeros(len(scores2))
-label2=np.ones(len(scores1))
+label1=np.zeros(len(scores1))
+label2=np.ones(len(scores2))
 
 label=np.append(label1,label2)
-pred=np.append(scores2,scores1)
+pred=np.append(scores1,scores2)
 
 fpr,tpr,thresholds = metrics.roc_curve(label,pred,pos_label=0)
 
 auc= metrics.auc(fpr,tpr)
 
 print(auc)
+
+
